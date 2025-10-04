@@ -68,6 +68,11 @@ def main():
         default='.env',
         help='Path to .env file (default: .env)'
     )
+    parser.add_argument(
+        '--output',
+        default='md',
+        help='Output format (default: md). Maps to prompt-output-{format}.md'
+    )
     args = parser.parse_args()
 
     try:
@@ -106,11 +111,13 @@ def main():
         log("\n🔨 Building prompt...")
 
         # Load optional prompt files
-        prompt_top, prompt_output = load_prompt_files(SCRIPT_DIR, "markdown")
+        prompt_top, prompt_output = load_prompt_files(SCRIPT_DIR, args.output)
         if prompt_top:
             log("  ✓ Found prompt-top.md")
-        if prompt_output:
-            log("  ✓ Found prompt-output-markdown.md")
+        if not prompt_output:
+            log(f"❌ Required output prompt file not found: prompt-output-{args.output}.md")
+            sys.exit(1)
+        log(f"  ✓ Found prompt-output-{args.output}.md")
 
         # Build prompt
         prompt_builder = PromptBuilder(
@@ -141,9 +148,9 @@ def main():
         log("✓ Response received")
 
         # Save response to file
-        response_file = SCRIPT_DIR / 'last-response.md'
+        response_file = SCRIPT_DIR / f'last-response.{args.output}'
         response_file.write_text(response)
-        log("✓ Saved to last-response.md\n")
+        log(f"✓ Saved to last-response.{args.output}\n")
 
         log("=" * 60 + "\n")
 

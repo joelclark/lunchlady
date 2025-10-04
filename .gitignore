@@ -1,5 +1,5 @@
 .env
 __pycache__
 last-prompt.md
-last-response.md
+last-response.*
 .venv/
