@@ -1,0 +1,30 @@
+#!/bin/bash
+"""true" '''\'
+# This script works as both a bash script and Python script
+# Bash portion: activate venv if it exists, then re-exec with Python
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Check if .venv exists and activate it
+if [ -d "$SCRIPT_DIR/.venv" ]; then
+    source "$SCRIPT_DIR/.venv/bin/activate"
+fi
+
+# Re-execute this script with Python
+exec python3 "$0" "$@"
+'''
+"""
+
+# Python portion starts here
+import sys
+from pathlib import Path
+
+# Add the script directory to Python path
+script_dir = Path(__file__).parent
+sys.path.insert(0, str(script_dir))
+
+# Import and run main
+from main import main
+
+if __name__ == '__main__':
+    main()

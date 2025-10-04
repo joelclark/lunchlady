@@ -1,14 +1,14 @@
 # Lunch Lady - Meal Planning CLI App
 
 ## Overview
-A Python CLI tool that generates meal plans by reading meal component data from Google Sheets, assembling a prompt with that data, and sending it to OpenAI for meal planning suggestions.
+A Python CLI tool that generates meal plans by reading meal component data from Google Sheets, assembling a prompt with that data, and sending it to Google Gemini for meal planning suggestions.
 
 ## Technical Requirements
 - Python 3.12+
 - Modular architecture for future integration into larger app
 - No UI - command line only
 - Google Sheets as datastore
-- OpenAI API for meal plan generation
+- Google Gemini API for meal plan generation
 - Output uses informal language
 
 ## Google Sheets Structure
@@ -17,10 +17,10 @@ A Python CLI tool that generates meal plans by reading meal component data from 
 
 **1. "config" sheet**
 - Two columns: key | value
-- Required keys:
-  - `prompt_header` - Static text at the start of the prompt
-  - `prompt_footer` - Static text at the end of the prompt
-- Additional keys can be added as needed
+- Recognized keys (all optional):
+  - `prompt_header` - Static text at the start of the prompt (after prompt-top.md)
+  - `prompt_footer` - Static text at the end of the prompt (after food sheets, before user_input)
+
 
 **2. "sheet-context" sheet**
 - Two columns: sheet_name | context
@@ -36,13 +36,13 @@ A Python CLI tool that generates meal plans by reading meal component data from 
 ## Configuration (.env file)
 
 Required environment variables:
-- `GOOGLE_API_KEY` - Google Sheets API key
-- `OPENAI_API_KEY` - OpenAI API key
+- `GOOGLE_API_KEY` - Google API key (used for both Sheets and Gemini)
 - `SPREADSHEET_ID` - Google Sheets workbook ID
-- `OPENAI_MODEL` - Which OpenAI model to use (e.g., "gpt-4", "gpt-3.5-turbo")
+- `GEMINI_MODEL` - Which Gemini model to use (e.g., "gemini-2.0-flash-exp", "gemini-1.5-pro")
 
 Optional:
-- Additional OpenAI parameters as needed (temperature, max_tokens, etc.)
+- `GEMINI_TEMPERATURE` - Sampling temperature (0.0-2.0)
+- `GEMINI_MAX_TOKENS` - Maximum tokens in response
 
 ## CLI Interface
 
@@ -55,14 +55,26 @@ python main.py [--env-file PATH]
 - `--env-file` - Optional path to .env file (defaults to `.env` in current directory)
 
 **Output:**
-- Prints OpenAI response to stdout
+- Prints Gemini response to stdout
+- Saves assembled prompt to `last-prompt.md`
+- Saves Gemini response to `last-response.md`
+
+## Optional Prompt Files
+
+Two optional markdown files can be placed in the project root:
+- `prompt-top.md` - Content injected at the very beginning of the prompt
+- `prompt-output-markdown.md` - Content injected at the very end of the prompt
+
+These wrap around the config sheet's prompt_header and prompt_footer.
 
 ## Prompt Structure
 
 The assembled prompt will follow this format:
 
 ```
-{config["prompt_header"]}
+{prompt-top.md if exists}
+
+{config["prompt_header"] if exists}
 
 ## [Sheet Name 1]
 {sheet-context for Sheet Name 1, if exists}
@@ -76,7 +88,11 @@ The assembled prompt will follow this format:
 
 ...
 
-{config["prompt_footer"]}
+{config["prompt_footer"] if exists}
+
+**Final thoughts from the user:** {config["user_input"] if exists}
+
+{prompt-output-markdown.md if exists}
 ```
 
 ## Module Structure
@@ -96,27 +112,36 @@ The assembled prompt will follow this format:
 - Read any sheet's data as tabular format (list of lists)
 - Preserve sheet order from workbook
 
-### 3. `prompt_builder.py`
+### 3. `sheet_loader.py`
+- Orchestrate data loading from Google Sheets
+- Return SheetData dataclass containing config, sheet_context, and food_sheets
+- Acts as facade over sheets_client.py
+
+### 4. `prompt_builder.py`
 - Accept config dict, sheet-context dict, and ordered list of sheet data
+- Accept optional prompt-top.md and prompt-output-markdown.md content
 - Format each food sheet as markdown table (with headers)
 - Add sheet context before each table if available
-- Assemble full prompt: header + all sheets + footer
+- Assemble full prompt: prompt-top + header + all sheets + footer + user_input + prompt-output
 - Return complete prompt string
 
-### 4. `openai_client.py`
-- Initialize with API key and model name
+### 5. `gemini_client.py`
+- Initialize with model name
 - Accept prompt text
-- Call OpenAI API with configured parameters
+- Call Gemini API with configured parameters
 - Return response text
 - Handle API errors gracefully
 
-### 5. `main.py`
+### 6. `main.py`
 - CLI entry point
 - Parse command line arguments
 - Load configuration
 - Initialize sheets client and get data from all sheets
+- Read optional prompt-top.md and prompt-output-markdown.md files
 - Build prompt using prompt builder
-- Call OpenAI client
+- Save assembled prompt to last-prompt.md
+- Call Gemini client
+- Save response to last-response.md
 - Print response to stdout
 - Handle errors and provide helpful messages
 
